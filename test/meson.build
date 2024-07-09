@@ -139,7 +139,7 @@ revoke_devmem = executable('revoke_devmem', testcore + [
 
 mmap = executable('mmap', 'mmap.c',)
 
-create = find_program('create.sh')
+nfit_namespace = find_program('nfit-namespace.sh')
 clear = find_program('clear.sh')
 pmem_errors = find_program('pmem-errors.sh')
 daxdev_errors_sh = find_program('daxdev-errors.sh')
@@ -168,11 +168,12 @@ cxl_sanitize = find_program('cxl-sanitize.sh')
 cxl_destroy_region = find_program('cxl-destroy-region.sh')
 cxl_qos_class = find_program('cxl-qos-class.sh')
 cxl_poison = find_program('cxl-poison.sh')
+cxl_namespace = find_program('cxl-namespace.sh')
 
 tests = [
   [ 'libndctl',               libndctl,		  'ndctl' ],
   [ 'dsm-fail',               dsm_fail,	      	  'ndctl' ],
-  [ 'create.sh',              create,	      	  'ndctl' ],
+  [ 'nfit-namespace.sh',      nfit_namespace,     'ndctl' ],
   [ 'clear.sh',               clear,	      	  'ndctl' ],
   [ 'pmem-errors.sh',         pmem_errors,    	  'ndctl' ],
   [ 'daxdev-errors.sh',       daxdev_errors_sh,	  'dax'	  ],
@@ -201,6 +202,7 @@ tests = [
   [ 'cxl-destroy-region.sh',  cxl_destroy_region, 'cxl'   ],
   [ 'cxl-qos-class.sh',       cxl_qos_class,      'cxl'   ],
   [ 'cxl-poison.sh',          cxl_poison,         'cxl'   ],
+  [ 'cxl-namespace.sh',       cxl_namespace,      'cxl'   ],
 ]
 
 if get_option('destructive').enabled()

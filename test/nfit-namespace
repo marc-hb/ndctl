@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (C) 2024 Intel Corporation. All rights reserved.
+
+modprobe -r nfit_test
+modprobe nfit_test
+reset
