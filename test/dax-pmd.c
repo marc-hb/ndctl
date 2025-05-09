@@ -24,7 +24,7 @@
 	__func__, __LINE__, strerror(errno))
 #define faili(i) fprintf(stderr, "%s: failed at: %d: %d (%s)\n", \
 	__func__, __LINE__, i, strerror(errno))
-#define TEST_DIR "test_dax_mnt"
+#define TEST_DIR "/tmp/test_dax_mnt"
 #define TEST_FILE TEST_DIR "/test_dax_data"
 
 #define REGION_MEM_SIZE 4096*4
