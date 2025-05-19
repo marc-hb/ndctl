@@ -658,7 +658,7 @@ int cmd_monitor(int argc, const char **argv, struct ndctl_ctx *ctx)
 			rc = -ENXIO;
 		goto out;
 	}
-
+	info(&monitor, "monitor ready\n");
 	rc = monitor_event(ctx, &mfa);
 out:
 	if (monitor.ctx.log_file)

@@ -21,12 +21,28 @@ trap 'err $LINENO' ERR
 
 check_min_kver "4.15" || do_skip "kernel $KVER may not support monitor service"
 
+wait_for_logfile_update()
+{
+	local expect_string="$1"
+	local expect_count="$2"
+
+	# Wait up to 3s for $expect_count occurrences of $expect_string
+	# tail -n +1 -F: starts watching the logfile from the first line
+
+	if ! timeout 3s tail -n +1 -F "$logfile" | grep -m "$expect_count" -q "$expect_string"; then
+		echo "logfile not updated in 3 secs"
+		err "$LINENO"
+	fi
+}
+
 start_monitor()
 {
 	logfile=$(mktemp)
 	$NDCTL monitor -c "$monitor_conf" -l "$logfile" $1 &
 	monitor_pid=$!
-	sync; sleep 3
+
+	sync
+	wait_for_logfile_update "monitor ready" 1
 	truncate --size 0 "$logfile" #remove startup log
 }
 
@@ -49,17 +65,19 @@ get_monitor_dimm()
 call_notify()
 {
 	"$TEST_PATH"/smart-notify "$smart_supported_bus"
-	sync; sleep 3
 }
 
 inject_smart()
 {
 	$NDCTL inject-smart "$monitor_dimms" $1
-	sync; sleep 3
 }
 
 check_result()
 {
+	sync
+	expect_count=$(wc -w <<< "$1")
+	wait_for_logfile_update "timestamp" "$expect_count"
+
 	jlog=$(cat "$logfile")
 	notify_dimms=$(jq ."dimm"."dev" <<<"$jlog" | sort | uniq | xargs)
 	[[ "$1" == "$notify_dimms" ]]
