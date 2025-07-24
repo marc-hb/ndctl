@@ -15,6 +15,25 @@ err()
 	exit "$rc"
 }
 
+# Initialize the NDTEST_START timestamp used to scan the logs.
+# Insert an anchor/bookmark in the logs to quickly locate the start of any test.
+time_init()
+{
+	# Refuse to run if anything lasted for too long before this point
+	# because that would make NDTEST_START incorrect.
+	test "$SECONDS" -le 1 || err 'test/common must be included first!'
+
+	NDTEST_START=$(LC_TIME=C date '+%F %T.%3N')
+
+	# Log anchor, especially useful when running tests back to back
+	printf "<5>%s@%ds: sourcing test/common: NDTEST_START=%s\n" \
+		"$test_basename" "$SECONDS" "$NDTEST_START" > /dev/kmsg
+
+	# Default value, can be overridden by the environment
+	: "${NDTEST_LOG_DBG:=false}"
+}
+time_init
+
 # Global variables
 
 # NDCTL
@@ -147,11 +166,40 @@ json2var()
 # $1: line number where this is called
 check_dmesg()
 {
+	if "$NDTEST_LOG_DBG"; then
+		# Keep a record of which log lines we scanned
+		journalctl -q -b --since "$NDTEST_START" \
+			-o short-precise > journal-"$(basename "$0")".log
+	fi
+	# After enabling with `NDTEST_LOG_DBG=true meson test`, inspect with:
+	#    head -n 7 $(ls -1t build/journal-*.log | tac)
+	#    journalctl --since='- 5 min' -o short-precise -g 'test/common'
+
 	# validate no WARN or lockdep report during the run
-	sleep 1
-	log=$(journalctl -r -k --since "-$((SECONDS+1))s")
+	log=$(journalctl -r -k --since "$NDTEST_START")
 	grep -q "Call Trace" <<< "$log" && err "$1"
 	true
+
+	# Log anchor, especially useful when running tests back to back
+	printf "<5>%s@%ds: test/common: check_dmesg() OK\n" "$test_basename" "$SECONDS" > /dev/kmsg
+
+	if "$NDTEST_LOG_DBG"; then
+	    log_stress from_check_dmesg
+	fi
+}
+
+# While they should, many tests don't use check_dmesg(). So double down here. Also, this
+# runs later which is better.
+# Before enabling NDTEST_LOG_DBG=true, make sure no test started defining its own
+# EXIT trap.
+if "$NDTEST_LOG_DBG"; then
+    trap 'log_stress from_trap' EXIT
+fi
+
+log_stress()
+{
+	printf '<3>%s@%ds: NDTEST_LOG_DBG Call Trace; trying to break the next check_dmesg() %s\n' \
+		"$test_basename" "$SECONDS" "$1" > /dev/kmsg
 }
 
 # CXL COMMON
