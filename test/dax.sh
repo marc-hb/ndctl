@@ -118,6 +118,12 @@ else
 	run_xfs
 fi
 
+kmsg_fail_if_missing+=(
+    'nd_pmem pfn.*: unable to guarantee persistence of writes'
+    'Memory failure: .*: Sending SIGBUS to dax-pmd:.* due to hardware memory corruption'
+    'Memory failure: .*: recovery action for dax page: Recovered'
+)
+
 check_dmesg "$LINENO"
 
 exit 0

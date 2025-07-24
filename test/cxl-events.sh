@@ -26,6 +26,8 @@ rc=1
 dev_path="/sys/bus/platform/devices"
 trace_path="/sys/kernel/tracing"
 
+kmsg_no_fail_on+=('cxl_mock_mem cxl_mem.* no CXL window for range')
+
 test_region_info()
 {
 	# Trigger a memdev in the cxl_test autodiscovered region
