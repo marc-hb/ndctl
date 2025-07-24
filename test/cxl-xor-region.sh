@@ -16,6 +16,8 @@ modprobe -r cxl_test
 modprobe cxl_test interleave_arithmetic=1
 rc=1
 
+kmsg_fail_if_missing+=('cxl_mock_mem cxl_mem.* no CXL window for range')
+
 # THEORY OF OPERATION: Create x1,2,3,4 regions to exercise the XOR math
 # option of the CXL driver. As with other cxl_test tests, changes to the
 # CXL topology in tools/testing/cxl/test/cxl.c may require an update here.

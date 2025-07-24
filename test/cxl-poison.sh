@@ -9,6 +9,16 @@ rc=77
 set -ex
 [ -d "/sys/kernel/tracing" ] || do_skip "test requires CONFIG_TRACING"
 
+# FIXME: this should be in "kmsg_fail_if_missing" but this test seems to
+# work only once. Cleanup/reset issue?
+kmsg_no_fail_on+=(
+    # Older
+    'cxl_mock_mem cxl_mem.*: poison inject dpa:0x'
+    'cxl_mock_mem cxl_mem.*: poison clear dpa:0x'
+    # Newer
+    'cxl_region region.*: Offset .* exceeds region size'
+)
+
 trap 'err $LINENO' ERR
 
 check_prereq "jq"
