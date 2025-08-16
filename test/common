@@ -31,6 +31,12 @@ time_init()
 
 	# Default value, can be overridden by the environment
 	: "${NDTEST_LOG_DBG:=false}"
+
+	if "$NDTEST_LOG_DBG"; then
+		local _cd_dbg_msg="NDTEST_LOG_DBG: $test_basename early msg must be found by check_dmesg()"
+		printf '<3>%s: %s\n' "$test_basename" "$_cd_dbg_msg" > /dev/kmsg
+		kmsg_fail_if_missing+=("$_cd_dbg_msg")
+	fi
 }
 time_init
 
@@ -162,10 +168,69 @@ json2var()
 	sed -e "s/[{}\",]//g; s/\[//g; s/\]//g; s/:/=/g"
 }
 
-# check_dmesg
+# check_dmesg() performs two actions controlled by two bash arrays:
+# "kmsg_no_fail_on" and "kmsg_fail_if_missing". These list of extended
+# regular expressions (grep '-E') have default values here that can
+# be customized by each test.
+#
+# 1. check_dmesg() first checks the output of `journalctl -k -p warning`
+# and makes the invoking test FAIL if any unexpected kernel error or
+# warning occurred during the test. Messages in either the
+# "kmsg_no_fail_on" or the "kmsg_fail_if_missing" arrays are expected
+# and do NOT cause a test failure. All other errors and warnings cause a
+# test failure.
+#
+# 2.1 Then, check_dmesg() makes sure at least one line in the logs
+# matches each regular expression in the "kmsg_fail_if_missing" array. If
+# any of these expected messages was never issued during the test, then
+# the test fails. This is especially useful for "negative" tests
+# triggering expected errors; but not just. Unlike 1., all log levels
+# are searched. Avoid relying on "optional" messages (e.g.: dyndbg) in
+# "kmsg_fail_if_missing".
+#
+# 2.2 to make sure "something" happened during the test, check_dmesg()
+# provides a default, non-empty kmsg_fail_if_missing value that searches
+# for either "nfit_test" or pmem" or "cxl_". These are not searched if
+# the test already provides some value(s) in "kmsg_fail_if_missing".
+# While not recommended, a test could use check_dmesg() and opt out of
+# "kmsg_fail_if_missing" with a pointless regular expression like '.'
+
+# Always append with '+=' to give any test the freedom to source this
+# file before or after adding exclusions.
+# kmsg_no_fail_on+=('this array cannot be empty otherwise grep -v fails')
+
+kmsg_no_fail_on+=('cxl_core: loading out-of-tree module taints kernel')
+kmsg_no_fail_on+=('cxl_mock_mem.*: CXL MCE unsupported')
+kmsg_no_fail_on+=('cxl.*: Extended linear cache calculation failed')
+
+# 'modprobe nfit_test' prints these every time it's not already loaded
+kmsg_no_fail_on+=(
+    'nd_pmem namespace.*: unable to guarantee persistence of writes'
+    'nfit_test nfit_test.*: failed to evaluate _FIT'
+    'nfit_test nfit_test.*: Error found in NVDIMM nmem.* flags: save_fail restore_fail flush_fail not_armed'
+    'nfit_test nfit_test.1: Error found in NVDIMM nmem.* flags: map_fail'
+)
+
+# notice level to give some information without flooding the (single!)
+# testlog.txt file
+journalctl_notice()
+{
+	( set +x;
+	  printf ' ------------ More verbose logs at t=%ds ----------\n' "$SECONDS" )
+	journalctl -b --no-pager -o short-precise -p notice --since "-$((SECONDS*1000 + 1000)) ms"
+}
+
 # $1: line number where this is called
 check_dmesg()
 {
+	local _e_kmsg_no_fail_on=()
+	for re in "${kmsg_no_fail_on[@]}" "${kmsg_fail_if_missing[@]}"; do
+		_e_kmsg_no_fail_on+=('-e' "$re")
+	done
+
+	# Give some time for a complete kmsg->journalctl flush + any delayed test effect.
+	# sleep 1
+
 	if "$NDTEST_LOG_DBG"; then
 		# Keep a record of which log lines we scanned
 		journalctl -q -b --since "$NDTEST_START" \
@@ -175,10 +240,30 @@ check_dmesg()
 	#    head -n 7 $(ls -1t build/journal-*.log | tac)
 	#    journalctl --since='- 5 min' -o short-precise -g 'test/common'
 
-	# validate no WARN or lockdep report during the run
-	log=$(journalctl -r -k --since "$NDTEST_START")
-	grep -q "Call Trace" <<< "$log" && err "$1"
-	true
+	{ # Redirect to stderr so this is all at the _bottom_ in the log file
+
+	# Fail on kernel WARNING or ERROR.
+	if journalctl -q -o short-precise -p warning -k --since "$NDTEST_START" |
+		grep -E -v "${_e_kmsg_no_fail_on[@]}"; then
+			journalctl_notice
+			err "$1"
+	fi
+
+	# Sanity check: make sure "something" has run
+	if [ "${#kmsg_fail_if_missing[@]}" = 0 ]; then
+		kmsg_fail_if_missing+=( '(nfit_test)|(pmem)|(cxl_)' )
+	fi
+
+	local expected_re
+	for expected_re in "${kmsg_fail_if_missing[@]}"; do
+		journalctl -q -k -p 7 --since "$NDTEST_START" |
+			grep -q -E -e "${expected_re}" || {
+				printf 'FAIL: expected error not found: %s\n' "$expected_re"
+				journalctl_notice
+				err "$1"
+		}
+	done
+	} >&2
 
 	# Log anchor, especially useful when running tests back to back
 	printf "<5>%s@%ds: test/common: check_dmesg() OK\n" "$test_basename" "$SECONDS" > /dev/kmsg
