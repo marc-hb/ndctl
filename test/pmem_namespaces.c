@@ -178,19 +178,37 @@ int test_pmem_namespaces(int log_level, struct ndctl_test *test,
 
 	ndctl_set_log_priority(ctx, log_level);
 
+	system("tree /sys/class/nd/");
+/*
+	/sys/class/nd/
+		 |-- ndctl0 -> ../../devices/platform/e820_pmem/ndbus0/nd/ndctl0
+		 |-- ndctl1 -> ../../devices/LNXSYSTM:00/LNXSYBUS:00/ACPI0012:00/ndbus1/nd/ndctl1
+*/
+	system("ls -l /sys/bus/nd/drivers/nd_region/");
+	system("grep ^ /sys/class/nd/ndctl*/device/provider");
+	system("ndctl list -BRNDciu");
+
 	bus = ndctl_bus_get_by_provider(ctx, "ACPI.NFIT");
 	if (bus) {
+		int c = 0;
 		/* skip this bus if no label-enabled PMEM regions */
-		ndctl_region_foreach(bus, region)
+		ndctl_region_foreach(bus, region) {
+			printf("Checking %dth region: %s\n", c, ndctl_region_get_devname(region));
+			c++;
 			if (ndctl_region_get_nstype(region)
 					== ND_DEVICE_NAMESPACE_PMEM)
 				break;
-		if (!region)
+		}
+		if (!region) {
+			fprintf(stderr, "%d ACPI.NFIT region(s) found; no suitable PMEM region, \n", c);
 			bus = NULL;
-	}
+		}
+	} else
+		fprintf(stderr, "ACPI.NFIT unavailable, ");
 
-	if (!bus) {
-		fprintf(stderr, "ACPI.NFIT unavailable falling back to nfit_test\n");
+
+	if (!bus || false) {
+		fprintf(stderr, "falling back to nfit_test\n");
 		rc = ndctl_test_init(&kmod_ctx, &mod, NULL, log_level, test);
 		ndctl_invalidate(ctx);
 		bus = ndctl_bus_get_by_provider(ctx, "nfit_test.0");
