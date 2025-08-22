@@ -155,4 +155,5 @@ check_dmesg()
 }
 
 # CXL COMMON
+# Test constant defined in kernel commit v6.8-rc2-9-g117132edc690
 CXL_TEST_QOS_CLASS=42
