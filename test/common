@@ -6,6 +6,9 @@
 # $2: cleanup function (optional)
 #
 
+# Test hack to pass cxl-topology.sh on v6.6-based GNR
+# modprobe -r cxl_mock_mem || true
+
 test_basename=$(basename "$0")
 
 err()
@@ -209,6 +212,8 @@ kmsg_no_fail_on+=(
     'nfit_test nfit_test.*: failed to evaluate _FIT'
     'nfit_test nfit_test.*: Error found in NVDIMM nmem.* flags: save_fail restore_fail flush_fail not_armed'
     'nfit_test nfit_test.1: Error found in NVDIMM nmem.* flags: map_fail'
+    # for v6.6-based GNR kernels
+    'CXL port topology not found'
 )
 
 # notice level to give some information without flooding the (single!)
